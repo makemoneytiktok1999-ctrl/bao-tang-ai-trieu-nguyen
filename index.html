@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bảo tàng AI – Triều Nguyễn</title>
+
+  <!-- AI runtime -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script defer src="https://unpkg.com/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
+  <style>
+    :root{
+      --bg1:#fffaf1;
+      --bg2:#f2eadc;
+      --paper:#fbf7ef;
+      --paper2:#fffdf7;
+      --border:#e6dccb;
+      --ink:#231f20;
+      --muted:#625a52;
+      --accent:#7a4e1d;
+      --shadow: 0 10px 30px rgba(0,0,0,.06);
+      --radius: 16px;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--ink);
+      background: radial-gradient(1200px 600px at 20% 0%, var(--bg1) 0%, var(--bg2) 70%, #efe5d3 100%);
+    }
+    .wrap{ max-width: 1100px; margin: 0 auto; padding: 18px 16px 28px; }
+    .topbar{
+      background: linear-gradient(180deg, var(--paper2), var(--paper));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px 14px 12px;
+      position: relative;
+      overflow:hidden;
+    }
+    .topbar:before{
+      content:"";
+      position:absolute;
+      inset:-2px;
+      background: radial-gradient(520px 240px at 18% 30%, rgba(182,134,58,.22), transparent 60%),
+                  radial-gradient(520px 240px at 86% 10%, rgba(122,78,29,.15), transparent 60%);
+      pointer-events:none;
+    }
+    .brand{ position:relative; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .seal{
+      width:44px;height:44px;border-radius:14px;
+      border:1px solid rgba(166,124,66,.55);
+      background: radial-gradient(circle at 30% 30%, #f7d9a8 0%, #d7a35a 55%, #8a5a22 100%);
+      display:flex;align-items:center;justify-content:center;
+      font-weight:900;color:#2a1b0d;
+      letter-spacing:.4px;
+      user-select:none;
+    }
+    .title{ margin:0; font-size:22px; font-weight:950; letter-spacing:.2px; }
+    .subtitle{
+      margin:6px 0 0;
+      color:var(--muted);
+      line-height:1.45;
+      max-width: 920px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap: 16px;
+      margin-top: 14px;
+    }
+    @media (max-width: 980px){ .grid{ grid-template-columns: 1fr; } }
+
+    .card{
+      background: linear-gradient(180deg, var(--paper2), var(--paper));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+
+    .controls{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom: 10px; }
+    button, select, label.toggle{
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background:#fff;
+      font-size:15px;
+    }
+    button{ cursor:pointer; font-weight:900; }
+    button.primary{
+      background: linear-gradient(180deg, #fff6e6, #ffe9c7);
+      border-color:#e1c79a;
+    }
+    button:disabled{ opacity:.55; cursor:not-allowed; }
+    select{ font-weight:800; }
+    label.toggle{
+      display:flex; align-items:center; gap:8px;
+      font-weight:900;
+      color:var(--muted);
+      user-select:none;
+    }
+    label.toggle input{ transform: translateY(1px); }
+
+    .cameraWrap{ display:flex; justify-content:center; margin-top: 8px; }
+    video{
+      width: 340px; height: 340px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background:#000;
+    }
+    canvas{ display:none; }
+
+    .status{
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px dashed #d9c9ad;
+      background: #fffaf1;
+      color:#3a2a17;
+      line-height:1.4;
+      white-space:pre-wrap;
+    }
+    .fine{ margin-top: 10px; color: var(--muted); font-size: 12px; line-height:1.45; }
+
+    /* Right panel (no jitter) */
+    .museumTitle{ font-size: 16px; font-weight: 950; letter-spacing:.2px; color: var(--accent); margin: 2px 0 8px; }
+    .artifactName{
+      font-size: 22px;
+      font-weight: 950;
+      margin: 2px 0 8px;
+      letter-spacing:.3px;
+      min-height: 34px; /* chống giật */
+    }
+    .pill{
+      display:inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border:1px solid var(--border);
+      background:#fff;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .timeline{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+    .timelineRow{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+      margin-bottom: 8px;
+    }
+    .bar{
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, #fff, #f7f1e6);
+      overflow:hidden;
+    }
+    .bar > div{
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(182,134,58,.25), rgba(122,78,29,.55));
+    }
+
+    .desc{
+      margin-top: 10px;
+      line-height: 1.6;
+      font-size: 15px;
+      color:#2b2724;
+      min-height: 104px; /* chống giật */
+    }
+
+    .quiz{
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+    .quizTitle{ font-weight: 950; color: var(--accent); margin:0 0 6px; }
+    .quizQ{ margin: 0 0 10px; color:#2b2724; line-height:1.45; }
+    .quizOpts{ display:flex; gap:10px; flex-wrap:wrap; }
+    .quizOpts button{
+      background:#fff;
+      border:1px solid var(--border);
+      font-weight:950;
+    }
+    .quizFeedback{ margin-top: 10px; color: var(--muted); font-weight: 900; }
+
+    .note{
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed #dfd2ba;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      min-height: 56px; /* chống giật */
+    }
+
+    .hidden{ display:none !important; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="seal">AI</div>
+        <div>
+          <h1 class="title">Bảo tàng AI – Triều Nguyễn: 13 vị vua – 1 dòng thời gian</h1>
+          <p class="subtitle">
+            Ứng dụng trí tuệ nhân tạo để giúp học sinh học lịch sử dễ hơn.
+            Hệ thống chỉ công bố khi đủ tin cậy, sau đó thuyết minh ngắn gọn như một hướng dẫn viên.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Left -->
+      <div class="card">
+        <div class="controls">
+          <button class="primary" id="btnStart">Bắt đầu tham quan</button>
+          <button id="btnStop" disabled>Kết thúc</button>
+          <select id="cameraSelect" title="Chọn camera"></select>
+
+          <label class="toggle" title="Hiện thông tin dòng thời gian">
+            <input type="checkbox" id="timelineToggle" checked />
+            Dòng thời gian
+          </label>
+        </div>
+
+        <div class="cameraWrap">
+          <video id="video" autoplay playsinline muted></video>
+          <canvas id="canvas" width="320" height="320"></canvas>
+        </div>
+
+        <div class="status" id="status">Trạng thái: Sẵn sàng.</div>
+        <div class="fine">Gợi ý: đặt ảnh/thẻ vua rõ nét trước camera, đủ sáng và giữ ổn định vài giây.</div>
+      </div>
+
+      <!-- Right -->
+      <div class="card">
+        <div class="museumTitle">Thuyết minh</div>
+        <div class="artifactName" id="artifactName">Chưa có hiện vật được xác nhận</div>
+        <div><span class="pill" id="confidencePill">Độ tin cậy: --</span></div>
+
+        <!-- Timeline -->
+        <div class="timeline" id="timelineBox">
+          <div class="timelineRow">
+            <div id="timelineText">13 vị vua • 1802 → 1945</div>
+            <div id="timelineMeta">—</div>
+          </div>
+          <div class="bar"><div id="timelineFill"></div></div>
+        </div>
+
+        <div class="desc" id="desc">
+          Hệ thống chỉ công bố kết quả khi đủ tin cậy và ổn định nhiều khung hình để hạn chế nhầm lẫn.
+        </div>
+
+        <!-- Quiz -->
+        <div class="quiz hidden" id="quizBox">
+          <p class="quizTitle">Trắc nghiệm nhanh</p>
+          <p class="quizQ" id="quizQ">—</p>
+          <div class="quizOpts" id="quizOpts"></div>
+          <div class="quizFeedback" id="quizFeedback"></div>
+        </div>
+
+        <div class="note">
+          <b>Ghi chú:</b> Đây là sản phẩm học tập. Để chính xác hơn, nên dùng thẻ vua rõ nét và huấn luyện thêm dữ liệu.
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // Model local
+  const MODEL_DIR = "./model/";
+
+  // Chính sách công bố
+  const THRESHOLD = 0.90;       // <90%: không công bố
+  const STABLE_FRAMES = 8;      // ổn định N khung hình mới chốt
+  const COOLDOWN_MS = 9000;     // nghỉ giữa các lần thuyết minh
+
+  // Lời chào + lời kết
+  const INTRO =
+    "Xin chào các bạn nhỏ. Chào mừng đến với Bảo tàng Trí tuệ Nhân tạo về triều Nguyễn. " +
+    "Các bạn hãy đưa ảnh hoặc thẻ vua vào trước camera. Khi máy nhận ra chắc chắn, mình sẽ kể vài điều thú vị nhé.";
+  const OUTRO =
+    "Cảm ơn các bạn đã tham quan. Hẹn gặp lại trong hành trình khám phá lịch sử Việt Nam!";
+
+  // Dòng thời gian
+  const timelineData = {
+    "GIA LONG":   { order: 1,  years: "1802–1820" },
+    "MINH MẠNG":  { order: 2,  years: "1820–1841" },
+    "THIỆU TRỊ":  { order: 3,  years: "1841–1847" },
+    "TỰ ĐỨC":     { order: 4,  years: "1847–1883" },
+    "DỤC ĐỨC":    { order: 5,  years: "1883" },
+    "HIỆP HÒA":   { order: 6,  years: "1883" },
+    "KIẾN PHÚC":  { order: 7,  years: "1883–1884" },
+    "HÀM NGHI":   { order: 8,  years: "1884–1885" },
+    "ĐỒNG KHÁNH": { order: 9,  years: "1885–1889" },
+    "THÀNH THÁI": { order: 10, years: "1889–1907" },
+    "DUY TÂN":    { order: 11, years: "1907–1916" },
+    "KHẢI ĐỊNH":  { order: 12, years: "1916–1925" },
+    "BẢO ĐẠI":    { order: 13, years: "1926–1945" }
+  };
+
+  const kingCore = {
+    "GIA LONG":   "Ông là người mở đầu triều Nguyễn và thống nhất đất nước.",
+    "MINH MẠNG":  "Ông nổi tiếng với nhiều cải cách và quản lý đất nước chặt chẽ.",
+    "THIỆU TRỊ":  "Ông chú trọng văn hóa và lễ nghi trong triều đình.",
+    "TỰ ĐỨC":     "Ông trị vì lâu nhất triều Nguyễn và rất coi trọng học hành.",
+    "DỤC ĐỨC":    "Ông trị vì rất ngắn, là nhân vật đặc biệt trong giai đoạn biến động.",
+    "HIỆP HÒA":   "Ông trị vì trong thời điểm khó khăn của lịch sử.",
+    "KIẾN PHÚC":  "Ông là vị vua trẻ và trị vì trong thời gian ngắn.",
+    "HÀM NGHI":   "Ông gắn với phong trào Cần Vương và tinh thần yêu nước.",
+    "ĐỒNG KHÁNH": "Ông trị vì trong giai đoạn chuyển tiếp cuối thế kỷ 19.",
+    "THÀNH THÁI": "Ông được nhắc đến vì tinh thần tiến bộ và lòng yêu nước.",
+    "DUY TÂN":    "Ông nổi bật vì tinh thần yêu nước từ khi còn rất trẻ.",
+    "KHẢI ĐỊNH":  "Ông để lại dấu ấn kiến trúc ở Huế, nổi bật là lăng Khải Định.",
+    "BẢO ĐẠI":    "Ông là vị vua cuối cùng của triều Nguyễn."
+  };
+
+  const quizBank = [
+    { q:"Vị vua nào là vị vua cuối cùng của triều Nguyễn?", correct:"BẢO ĐẠI", options:["BẢO ĐẠI","KHẢI ĐỊNH","THÀNH THÁI"] },
+    { q:"Vị vua nào mở đầu triều Nguyễn (bắt đầu từ năm 1802)?", correct:"GIA LONG", options:["GIA LONG","MINH MẠNG","TỰ ĐỨC"] },
+    { q:"Vị vua nào gắn với phong trào Cần Vương?", correct:"HÀM NGHI", options:["HÀM NGHI","ĐỒNG KHÁNH","DUY TÂN"] },
+    { q:"Vị vua nào trị vì lâu nhất triều Nguyễn?", correct:"TỰ ĐỨC", options:["TỰ ĐỨC","THIỆU TRỊ","MINH MẠNG"] },
+    { q:"Vị vua nào nổi bật với lăng Khải Định ở Huế?", correct:"KHẢI ĐỊNH", options:["KHẢI ĐỊNH","BẢO ĐẠI","MINH MẠNG"] },
+
+    { q:"Vị vua nào là vua thứ 2 của triều Nguyễn?", correct:"MINH MẠNG", options:["MINH MẠNG","THIỆU TRỊ","GIA LONG"] },
+    { q:"Vị vua nào là vua thứ 3 của triều Nguyễn?", correct:"THIỆU TRỊ", options:["THIỆU TRỊ","TỰ ĐỨC","MINH MẠNG"] },
+    { q:"Vị vua nào là vua thứ 13 (vua cuối cùng)?", correct:"BẢO ĐẠI", options:["BẢO ĐẠI","KHẢI ĐỊNH","DUY TÂN"] },
+    { q:"Vị vua nào nổi bật vì tinh thần yêu nước khi còn rất trẻ?", correct:"DUY TÂN", options:["DUY TÂN","THÀNH THÁI","ĐỒNG KHÁNH"] },
+    { q:"Vị vua nào được nhắc đến vì tinh thần tiến bộ và yêu nước?", correct:"THÀNH THÁI", options:["THÀNH THÁI","HIỆP HÒA","KIẾN PHÚC"] },
+
+    { q:"Vị vua nào trị vì giai đoạn 1820–1841?", correct:"MINH MẠNG", options:["MINH MẠNG","GIA LONG","THIỆU TRỊ"] },
+    { q:"Vị vua nào trị vì giai đoạn 1926–1945?", correct:"BẢO ĐẠI", options:["BẢO ĐẠI","KHẢI ĐỊNH","DUY TÂN"] },
+    { q:"Vị vua nào trị vì giai đoạn 1916–1925?", correct:"KHẢI ĐỊNH", options:["KHẢI ĐỊNH","BẢO ĐẠI","THÀNH THÁI"] },
+    { q:"Vị vua nào trị vì giai đoạn 1889–1907?", correct:"THÀNH THÁI", options:["THÀNH THÁI","ĐỒNG KHÁNH","HÀM NGHI"] },
+    { q:"Vị vua nào trị vì giai đoạn 1907–1916?", correct:"DUY TÂN", options:["DUY TÂN","KHẢI ĐỊNH","TỰ ĐỨC"] }
+  ];
+
+  // DOM
+  const $status = document.getElementById("status");
+  const $video = document.getElementById("video");
+  const $canvas = document.getElementById("canvas");
+  const ctx = $canvas.getContext("2d");
+
+  const $artifactName = document.getElementById("artifactName");
+  const $confidencePill = document.getElementById("confidencePill");
+  const $desc = document.getElementById("desc");
+
+  const $timelineToggle = document.getElementById("timelineToggle");
+  const $timelineBox = document.getElementById("timelineBox");
+  const $timelineText = document.getElementById("timelineText");
+  const $timelineMeta = document.getElementById("timelineMeta");
+  const $timelineFill = document.getElementById("timelineFill");
+
+  const $quizBox = document.getElementById("quizBox");
+  const $quizQ = document.getElementById("quizQ");
+  const $quizOpts = document.getElementById("quizOpts");
+  const $quizFeedback = document.getElementById("quizFeedback");
+
+  const $btnStart = document.getElementById("btnStart");
+  const $btnStop = document.getElementById("btnStop");
+  const $cameraSelect = document.getElementById("cameraSelect");
+
+  // State
+  let model = null;
+  let stream = null;
+  let rafId = null;
+
+  let stableLabel = "";
+  let stableCount = 0;
+
+  let lastCommittedLabel = "";
+  let lastSpokenTime = 0;
+
+  // ✅ FIX: cờ chạy để ngắt loopPredict ngay khi kết thúc
+  let isRunning = false;
+
+  function setStatus(text){ $status.textContent = text; }
+
+  async function listCameras(){
+    try{
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cams = devices.filter(d => d.kind === "videoinput");
+      $cameraSelect.innerHTML = "";
+      cams.forEach((cam, idx) => {
+        const opt = document.createElement("option");
+        opt.value = cam.deviceId;
+        opt.textContent = cam.label || `Camera ${idx+1}`;
+        $cameraSelect.appendChild(opt);
+      });
+    }catch(e){}
+  }
+
+  async function loadModelOnce(){
+    if(model) return model;
+    if(typeof tmImage === "undefined"){
+      setStatus("Không tải được thư viện AI. Hãy thử mở bằng HTTPS hoặc đổi mạng.");
+      throw new Error("tmImage not loaded");
+    }
+    setStatus("Đang nạp mô hình AI...");
+    const modelURL = MODEL_DIR + "model.json";
+    const metadataURL = MODEL_DIR + "metadata.json";
+    model = await tmImage.load(modelURL, metadataURL);
+    setStatus("Sẵn sàng. Nhấn “Bắt đầu tham quan” để bật camera.");
+    return model;
+  }
+
+  function playChime(){
+    try{
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const ctxA = new AudioCtx();
+      const o1 = ctxA.createOscillator();
+      const o2 = ctxA.createOscillator();
+      const g = ctxA.createGain();
+      o1.type = "sine";
+      o2.type = "triangle";
+      o1.frequency.value = 880;
+      o2.frequency.value = 1320;
+      g.gain.value = 0.0001;
+      o1.connect(g); o2.connect(g);
+      g.connect(ctxA.destination);
+      const t = ctxA.currentTime;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+      o1.start(t); o2.start(t);
+      o1.stop(t + 0.6); o2.stop(t + 0.6);
+      setTimeout(()=>ctxA.close(), 700);
+    }catch(e){}
+  }
+
+  // Voice selection + smooth speech
+  let VI_VOICE = null;
+  function pickVietnameseVoice() {
+    const voices = speechSynthesis.getVoices() || [];
+    VI_VOICE = voices.find(v => (v.lang || "").toLowerCase().startsWith("vi")) || null;
+    return VI_VOICE;
+  }
+  speechSynthesis.onvoiceschanged = () => pickVietnameseVoice();
+  pickVietnameseVoice();
+
+  function speak(text){
+    try{
+      speechSynthesis.cancel();
+      const parts = text.split(".").map(s => s.trim()).filter(Boolean);
+      const speakPart = (i) => {
+        if(i >= parts.length) return;
+        const msg = new SpeechSynthesisUtterance(parts[i] + ".");
+        msg.lang = "vi-VN";
+        msg.voice = VI_VOICE || null;
+        msg.rate = 0.95;
+        msg.pitch = 1.0;
+        msg.volume = 1.0;
+        msg.onend = () => setTimeout(() => speakPart(i + 1), 140);
+        speechSynthesis.speak(msg);
+      };
+      speakPart(0);
+    }catch(e){}
+  }
+
+  function updateTimelineStatic(){
+    if(!$timelineToggle.checked){
+      $timelineBox.classList.add("hidden");
+      return;
+    }
+    $timelineBox.classList.remove("hidden");
+    $timelineText.textContent = "13 vị vua • 1802 → 1945";
+    $timelineMeta.textContent = "—";
+    $timelineFill.style.width = "0%";
+  }
+
+  function updateTimelineFor(label){
+    if(!$timelineToggle.checked){
+      $timelineBox.classList.add("hidden");
+      return;
+    }
+    $timelineBox.classList.remove("hidden");
+    const t = timelineData[label];
+    if(!t){ updateTimelineStatic(); return; }
+    const pct = Math.round((t.order / 13) * 100);
+    $timelineText.textContent = `Vị vua thứ ${t.order}/13`;
+    $timelineMeta.textContent = `Trị vì: ${t.years}`;
+    $timelineFill.style.width = pct + "%";
+  }
+
+  function resetRightPanel(){
+    $artifactName.textContent = "Chưa có hiện vật được xác nhận";
+    $desc.textContent = "Hệ thống chỉ công bố kết quả khi đủ tin cậy và ổn định nhiều khung hình để hạn chế nhầm lẫn.";
+    $quizBox.classList.add("hidden");
+    $quizQ.textContent = "—";
+    $quizOpts.innerHTML = "";
+    $quizFeedback.textContent = "";
+    updateTimelineStatic();
+  }
+
+  function showQuiz(){
+    const item = quizBank[Math.floor(Math.random() * quizBank.length)];
+    $quizBox.classList.remove("hidden");
+    $quizQ.textContent = item.q;
+    $quizFeedback.textContent = "";
+    $quizOpts.innerHTML = "";
+    const opts = [...item.options].sort(()=>Math.random()-0.5);
+    opts.forEach(opt => {
+      const btn = document.createElement("button");
+      btn.textContent = opt;
+      btn.onclick = () => {
+        if(opt === item.correct){
+          $quizFeedback.textContent = "✅ Đúng rồi! Bạn giỏi quá!";
+        }else{
+          $quizFeedback.textContent = `❌ Chưa đúng. Đáp án đúng là: ${item.correct}.`;
+        }
+      };
+      $quizOpts.appendChild(btn);
+    });
+  }
+
+  function buildNarration(label){
+    const t = timelineData[label];
+    const core = kingCore[label] || "Đây là một vị vua của triều Nguyễn.";
+    if(!t){
+      return `Đây là ${label}. ${core}`;
+    }
+    return `Đây là ${label}. Vị vua thứ ${t.order} trong 13 vị vua triều Nguyễn. Ông trị vì giai đoạn ${t.years}. ${core}`;
+  }
+
+  function stopCamera(){
+    // ✅ FIX: tắt loopPredict ngay lập tức
+    isRunning = false;
+
+    if(rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+
+    if(stream){
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    $video.srcObject = null;
+    $btnStop.disabled = true;
+
+    stableLabel = "";
+    stableCount = 0;
+    lastCommittedLabel = "";
+
+    setStatus("Đã kết thúc. Hẹn gặp lại!");
+
+    // ✅ FIX: dừng mọi câu đang đọc để không bị chen thuyết minh vua
+    try{ speechSynthesis.cancel(); }catch(e){}
+
+    // ✅ đọc OUTRO chắc chắn
+    setTimeout(() => speak(OUTRO), 150);
+  }
+
+  async function startCamera(deviceId=null){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      setStatus("Trình duyệt không hỗ trợ camera. Hãy dùng Chrome/Edge bản mới.");
+      return;
+    }
+
+    // reset “từ đầu”
+    lastSpokenTime = 0;
+    stableLabel = "";
+    stableCount = 0;
+    lastCommittedLabel = "";
+    resetRightPanel();
+
+    // stop stream cũ nếu có
+    if(stream){
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+
+    try{
+      setStatus("Đang xin quyền camera... hãy bấm Allow nếu có hỏi.");
+      const constraints = {
+        video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: "environment" },
+        audio: false
+      };
+
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      $video.srcObject = stream;
+      await $video.play();
+
+      $btnStop.disabled = false;
+      await listCameras();
+
+      // ✅ bật cờ chạy
+      isRunning = true;
+
+      setStatus("Camera đã bật. Xin mời đưa ảnh/thẻ vua vào trước camera.");
+
+      // ✅ chào lại mỗi lần Start
+      try{ speechSynthesis.cancel(); }catch(e){}
+      setTimeout(() => speak(INTRO), 120);
+
+      loopPredict();
+    }catch(e){
+      setStatus("Không bật được camera. Hãy cấp quyền camera hoặc tắt app đang dùng camera (Zoom/Meet/Zalo).");
+    }
+  }
+
+  async function loopPredict(){
+    if(!model) return;
+    if(!isRunning) return; // ✅ FIX
+
+    ctx.drawImage($video, 0, 0, $canvas.width, $canvas.height);
+    const prediction = await model.predict($canvas);
+
+    let best = prediction[0];
+    for(const p of prediction) if(p.probability > best.probability) best = p;
+
+    const label = best.className;
+    const prob = best.probability;
+
+    // chỉ cập nhật % => không giật
+    $confidencePill.textContent = "Độ tin cậy: " + (prob*100).toFixed(1) + "%";
+
+    if(prob < THRESHOLD){
+      stableLabel = "";
+      stableCount = 0;
+      rafId = requestAnimationFrame(loopPredict);
+      return;
+    }
+
+    if(label === stableLabel) stableCount++;
+    else { stableLabel = label; stableCount = 1; }
+
+    if(stableCount < STABLE_FRAMES){
+      rafId = requestAnimationFrame(loopPredict);
+      return;
+    }
+
+    // chốt
+    if(label !== lastCommittedLabel){
+      lastCommittedLabel = label;
+
+      playChime();
+      updateTimelineFor(label);
+
+      const narration = buildNarration(label);
+      $artifactName.textContent = label;
+      $desc.textContent = narration;
+
+      const now = Date.now();
+      const cooldownOk = (now - lastSpokenTime) >= COOLDOWN_MS;
+      if(cooldownOk){
+        speak(narration);
+        lastSpokenTime = now;
+      }
+
+      showQuiz();
+    }
+
+    stableCount = 0;
+    rafId = requestAnimationFrame(loopPredict);
+  }
+
+  // UI
+  $btnStart.addEventListener("click", async () => {
+    try{
+      await loadModelOnce();
+      await startCamera($cameraSelect.value || null);
+    }catch(e){}
+  });
+
+  $btnStop.addEventListener("click", () => {
+    stopCamera();
+  });
+
+  $cameraSelect.addEventListener("change", async () => {
+    if(!model) return;
+    await startCamera($cameraSelect.value);
+  });
+
+  $timelineToggle.addEventListener("change", () => {
+    if($timelineToggle.checked){
+      $timelineBox.classList.remove("hidden");
+      if(lastCommittedLabel) updateTimelineFor(lastCommittedLabel);
+      else updateTimelineStatic();
+    }else{
+      $timelineBox.classList.add("hidden");
+    }
+  });
+
+  (async () => {
+    await listCameras();
+    setStatus("Trạng thái: Sẵn sàng.");
+    resetRightPanel();
+    try{ await loadModelOnce(); }catch(e){}
+  })();
+</script>
+</body>
+</html>
